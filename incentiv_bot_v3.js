@@ -38,7 +38,7 @@ const TOKENS = {
   WCENT: { address: "0xB0f0A14A50F14dc9e6476d61C00cF0375Dd4EB04", decimals: 18 },
 };
 
-// Gas — confirmed dari tx real
+// Gas — confirmed dari tx real on-chain
 const GAS_SEND = {
   callGasLimit:         ethers.BigNumber.from("0x000186a0"),
   verificationGasLimit: ethers.BigNumber.from("0x000412e6"),
@@ -55,7 +55,7 @@ const GAS_SWAP = {
   maxPriorityFeePerGas: ethers.BigNumber.from("0x000175fbf5ee800"),
 };
 
-const GAS_FEE_USDC = ethers.BigNumber.from("25000"); // ~$0.025 per tx
+const GAS_FEE_USDC = ethers.BigNumber.from("25000");
 
 // ─────────────────────────────────────────
 //  INISIALISASI
@@ -144,7 +144,7 @@ async function getUserOpHash(userOp, gasConfig) {
       [
         userOp.sender,
         userOp.nonce,
-        ethers.utils.keccak256("0x"),                          // initCode
+        ethers.utils.keccak256("0x"),
         ethers.utils.keccak256(userOp.callData),
         accountGasLimits,
         gasConfig.preVerificationGas,
@@ -179,7 +179,10 @@ async function signUserOp(userOp, gasConfig) {
 async function bundlerRpc(method, params) {
   const res = await fetch(BUNDLER_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "Origin": "https://portal.incentiv.io" },
+    headers: {
+      "Content-Type": "application/json",
+      "Origin": "https://portal.incentiv.io",
+    },
     body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method, params }),
   });
   const json = await res.json();
@@ -236,11 +239,11 @@ async function submitUserOp(callData, gasConfig, label) {
   console.log(`   Nonce: ${nonce.toString()}`);
 
   const userOp = {
-    sender:          SMART_WALLET,
-    nonce:           nonce,
-    callData:        callData,
+    sender:           SMART_WALLET,
+    nonce:            nonce,
+    callData:         callData,
     paymasterAndData: encodePaymasterData(),
-    signature:       "0x",
+    signature:        "0x",
   };
 
   // Sign dengan raw digest
@@ -248,16 +251,14 @@ async function submitUserOp(callData, gasConfig, label) {
   console.log(`   Signature: ${userOp.signature.slice(0, 20)}...`);
 
   const formatted = formatUserOpForBundler(userOp, gasConfig);
-    console.log("   📤 formatted:", JSON.stringify(formatted, null, 2));  // tambah ini
+  console.log(`   📤 UserOp: ${JSON.stringify(formatted)}`);
 
   try {
-    console.log("   📤 Sending:", JSON.stringify(formatted, null, 2));
-    console.log("   📤 UserOp:", JSON.stringify(formatted, null, 2));
-const userOpHash = await bundlerRpc("eth_sendUserOperation", [
-  formatted,
-  ENTRY_POINT,
-]);
-    console.log(`   ✅ UserOp: ${userOpHash}`);
+    const userOpHash = await bundlerRpc("eth_sendUserOperation", [
+      formatted,
+      ENTRY_POINT,
+    ]);
+    console.log(`   ✅ UserOp hash: ${userOpHash}`);
     console.log(`   🔗 https://explorer.incentiv.io/op/${userOpHash}`);
 
     const txHash = await waitForReceipt(userOpHash);
@@ -276,7 +277,7 @@ const userOpHash = await bundlerRpc("eth_sendUserOperation", [
       formatted.signature = userOp.signature;
 
       const userOpHash = await bundlerRpc("eth_sendUserOperation", [formatted, ENTRY_POINT]);
-      console.log(`   ✅ UserOp: ${userOpHash}`);
+      console.log(`   ✅ UserOp hash: ${userOpHash}`);
       const txHash = await waitForReceipt(userOpHash);
       if (txHash !== userOpHash) {
         console.log(`   ✅ TX: https://explorer.incentiv.io/tx/${txHash}`);
@@ -317,7 +318,6 @@ async function swapToken(tokenInSymbol, tokenOutSymbol, amountIn) {
   const amountInBN = ethers.utils.parseUnits(String(amountIn), tokenIn.decimals);
   const deadline   = Math.floor(Date.now() / 1000) + 600;
 
-  // Path: direct jika salah satu WCENT, multi-hop via WCENT jika tidak
   let path;
   if (tokenInSymbol === "WCENT" || tokenOutSymbol === "WCENT") {
     path = buildPath([tokenIn.address, tokenOut.address], [3000]);
@@ -454,12 +454,10 @@ async function main() {
     { type: "send", token: "WBTC",  amount: 0.000001 },
   ];
 
-  const REPEAT_TIMES = 3;    // Jumlah loop
-  const DELAY_MIN    = 30;   // Detik minimum antar aksi
-  const DELAY_MAX    = 90;   // Detik maximum antar aksi
-  const LOOP_DELAY   = 180;  // Jeda antar loop (detik)
-
-  // ══════════════════════════════════════
+  const REPEAT_TIMES = 3;
+  const DELAY_MIN    = 30;
+  const DELAY_MAX    = 90;
+  const LOOP_DELAY   = 180;
 
   console.log(`\n🚀 Mulai ${REPEAT_TIMES} loop × ${ACTIVITIES.length} aksi`);
 
