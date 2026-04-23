@@ -250,10 +250,11 @@ async function submitUserOp(callData, gasConfig, label) {
   const formatted = formatUserOpForBundler(userOp, gasConfig);
 
   try {
-    const userOpHash = await bundlerRpc("eth_sendUserOperation", [
-      formatted,
-      ENTRY_POINT,
-    ]);
+    console.log("   📤 Sending:", JSON.stringify(formatted, null, 2));
+const userOpHash = await bundlerRpc("eth_sendUserOperation", [
+  formatted,
+  ENTRY_POINT,
+]);
     console.log(`   ✅ UserOp: ${userOpHash}`);
     console.log(`   🔗 https://explorer.incentiv.io/op/${userOpHash}`);
 
