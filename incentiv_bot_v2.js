@@ -430,21 +430,21 @@ async function main() {
 
   const ACTIVITIES = [
     // Swap USDC ke berbagai token
-    { type: "swap", from: "USDC", to: "SOL",  amount: 0.1 },
-    { type: "swap", from: "USDC", to: "WBTC", amount: 0.1 },
-    { type: "swap", from: "USDC", to: "WETH", amount: 0.1 },
-    { type: "swap", from: "USDC", to: "USDT", amount: 0.1 },
+    { type: "swap", from: "USDC", to: "SOL",  amount: 0.01 },
+    { type: "swap", from: "USDC", to: "WBTC", amount: 0.01 },
+    { type: "swap", from: "USDC", to: "WETH", amount: 0.01 },
+    { type: "swap", from: "USDC", to: "USDT", amount: 0.01 },
 
     // Send token ke akun lain
     { type: "send", token: "SOL",  amount: 0.0001 },
 
     // Swap balik ke USDC
-    { type: "swap", from: "SOL",  to: "USDC", amount: 0.001    },
-    { type: "swap", from: "USDT", to: "USDC", amount: 0.09     },
-    { type: "swap", from: "WETH", to: "USDC", amount: 0.000001 },
+    { type: "swap", from: "SOL",  to: "USDC", amount: 0.01 },
+    { type: "swap", from: "USDT", to: "USDC", amount: 0.01 },
+    { type: "swap", from: "WETH", to: "USDC", amount: 0.01 },
   ];
 
-  const REPEAT_TIMES = 3;    // Jumlah loop
+  const REPEAT_TIMES = 50;    // Jumlah loop
   const DELAY_MIN    = 30;   // Detik minimum antar aksi
   const DELAY_MAX    = 90;   // Detik maximum antar aksi
   const LOOP_DELAY   = 180;  // Jeda antar loop (detik)
