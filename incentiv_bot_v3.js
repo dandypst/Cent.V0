@@ -79,7 +79,7 @@ const ENTRY_POINT_IFACE = new ethers.utils.Interface([
 ]);
 
 const ACCOUNT_IFACE = new ethers.utils.Interface([
-  "function execute(address[] targets, bytes[] calldatas, uint256[] values)",
+  "function executeBatch(address[] targets, uint256[] values, bytes[] calldatas)",
 ]);
 
 const ROUTER_IFACE = new ethers.utils.Interface([
@@ -92,7 +92,7 @@ const entryPoint = new ethers.Contract(ENTRY_POINT, ENTRY_POINT_IFACE, provider)
 //  HELPER: Encode multi-call
 // ─────────────────────────────────────────
 function encodeExecute(targets, values, calldatas) {
-  return ACCOUNT_IFACE.encodeFunctionData("execute", [targets, values, calldatas]);
+  return ACCOUNT_IFACE.encodeFunctionData("executeBatch", [targets, values, calldatas]);
 }
 
 // ─────────────────────────────────────────
