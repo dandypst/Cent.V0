@@ -248,6 +248,7 @@ async function submitUserOp(callData, gasConfig, label) {
   console.log(`   Signature: ${userOp.signature.slice(0, 20)}...`);
 
   const formatted = formatUserOpForBundler(userOp, gasConfig);
+    console.log("   📤 formatted:", JSON.stringify(formatted, null, 2));  // tambah ini
 
   try {
     console.log("   📤 Sending:", JSON.stringify(formatted, null, 2));
