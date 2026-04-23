@@ -21,7 +21,7 @@ const fetch = require("node-fetch");
 //  KONSTANTA
 // ─────────────────────────────────────────
 const RPC_URL      = "https://rpc.incentiv.io";
-const BUNDLER_URL  = "https://bundler.makecents.xyz";
+const BUNDLER_URL  = "https://bundler.incentiv.io";
 const ENTRY_POINT  = "0x3eC61c5633BBD7Afa9144C6610930489736a72d4";
 const PAYMASTER    = "0x43000f785EB43BcB4961C5c70276eD00e088972c";
 const CHAIN_ID     = 24101;
@@ -75,12 +75,11 @@ const ACCOUNT_IFACE = new ethers.utils.Interface([
   "function executeBatch(address[] targets, uint256[] values, bytes[] calldatas)",
 ]);
 
-// MakeCents router pakai multicall + exactInputSingle
-// selector: 0xac9650d8 = multicall(bytes[])
-// inner:    0xbc651188 = exactInputSingle(...)
+// MakeCents router — selector 0xbc651188
+// urutan parameter confirmed dari TX manual:
+// exactInputSingle(tokenIn, tokenOut, recipient, deadline, amountIn, amountOutMin, sqrtPriceLimit)
 const MAKECENTS_IFACE = new ethers.utils.Interface([
-  "function multicall(bytes[] data) returns (bytes[])",
-  "function exactInputSingle(address tokenIn, address tokenOut, address recipient, uint256 amountIn, uint256 amountOutMinimum, uint256 sqrtPriceLimitX96, uint256 deadline, uint256 fee) returns (uint256)",
+  "function exactInputSingle(address tokenIn, address tokenOut, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint256 sqrtPriceLimitX96) returns (uint256)",
 ]);
 
 const entryPoint = new ethers.Contract(ENTRY_POINT, ENTRY_POINT_IFACE, provider);
@@ -158,7 +157,7 @@ async function bundlerRpc(method, params) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Origin": "https://app.makecents.xyz",
+      "Origin": "https://portal.incentiv.io",
     },
     body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method, params }),
   });
@@ -242,28 +241,24 @@ async function swapMakeCents(tokenInSymbol, tokenOutSymbol, amountIn) {
   const amountInBN = ethers.utils.parseUnits(String(amountIn), tokenIn.decimals);
   const deadline   = Math.floor(Date.now() / 1000) + 600;
 
-  // Encode exactInputSingle — selector 0xbc651188
-  // dari tx real: bc651188(tokenIn, tokenOut, recipient, amountIn, amountOutMin, sqrtPriceLimit, deadline, fee)
+  // Encode exactInputSingle langsung — confirmed dari TX manual
+  // urutan: tokenIn, tokenOut, recipient, deadline, amountIn, amountOutMin, sqrtPriceLimit
   const exactInputData = MAKECENTS_IFACE.encodeFunctionData("exactInputSingle", [
     tokenIn.address,
     tokenOut.address,
-    SMART_WALLET,       // recipient
-    amountInBN,         // amountIn
-    0,                  // amountOutMinimum (market price, no slippage protection)
-    ethers.BigNumber.from("0x000001000276a4"), // sqrtPriceLimitX96 dari tx real
-    deadline,
-    3000,               // fee 0.3%
+    SMART_WALLET,  // recipient
+    deadline,      // deadline (posisi ke-4, sesuai TX manual)
+    amountInBN,    // amountIn
+    0,             // amountOutMinimum
+    0,             // sqrtPriceLimitX96
   ]);
-
-  // Wrap dalam multicall
-  const multicallData = MAKECENTS_IFACE.encodeFunctionData("multicall", [[exactInputData]]);
 
   const targets   = [TOKENS.USDC.address, tokenIn.address, MAKECENTS_ROUTER];
   const values    = [0, 0, 0];
   const calldatas = [
     ERC20_IFACE.encodeFunctionData("transfer", [PAYMASTER, GAS_FEE_USDC]),
     ERC20_IFACE.encodeFunctionData("approve",  [MAKECENTS_ROUTER, amountInBN]),
-    multicallData,
+    exactInputData,
   ];
 
   console.log(`\n🔄 MakeCents Swap ${amountIn} ${tokenInSymbol} → ${tokenOutSymbol}`);
