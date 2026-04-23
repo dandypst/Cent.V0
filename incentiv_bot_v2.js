@@ -13,6 +13,8 @@
  *    SMART_WALLET=0x6DA0...  <- smart wallet Incentiv kamu
  *    SEND_TO=0x...           <- alamat tujuan send token
  */
+await checkBalances();
+process.exit(0); // hapus baris ini setelah cek saldo
 
 require("dotenv").config();
 const { ethers } = require("ethers");
