@@ -13,6 +13,8 @@
  *    SMART_WALLET=0x6DA0...  <- smart wallet Incentiv kamu
  *    SEND_TO=0x...           <- alamat tujuan send token
  */
+await checkBalances();
+process.exit(0); // hapus baris ini setelah cek saldo
 
 require("dotenv").config();
 const { ethers } = require("ethers");
@@ -429,22 +431,45 @@ async function main() {
   // ══════════════════════════════════════
 
   const ACTIVITIES = [
-    // Swap USDC ke berbagai token
-    { type: "swap", from: "USDC", to: "SOL",  amount: 0.1 },
-    { type: "swap", from: "USDC", to: "WBTC", amount: 0.1 },
-    { type: "swap", from: "USDC", to: "WETH", amount: 0.1 },
-    { type: "swap", from: "USDC", to: "USDT", amount: 0.1 },
+  // ── SWAP dari USDC ──
+  { type: "swap", from: "USDC", to: "SOL",  amount: 0.1 },
+  { type: "swap", from: "USDC", to: "WBTC", amount: 0.1 },
+  { type: "swap", from: "USDC", to: "WETH", amount: 0.1 },
+  { type: "swap", from: "USDC", to: "USDT", amount: 0.1 },
 
-    // Send token ke akun lain
-    { type: "send", token: "SOL",  amount: 0.0001 },
+  // ── SWAP dari USDT ──
+  { type: "swap", from: "USDT", to: "USDC", amount: 0.09 },
+  { type: "swap", from: "USDT", to: "SOL",  amount: 0.09 },
+  { type: "swap", from: "USDT", to: "WBTC", amount: 0.09 },
+  { type: "swap", from: "USDT", to: "WETH", amount: 0.09 },
 
-    // Swap balik ke USDC
-    { type: "swap", from: "SOL",  to: "USDC", amount: 0.001    },
-    { type: "swap", from: "USDT", to: "USDC", amount: 0.09     },
-    { type: "swap", from: "WETH", to: "USDC", amount: 0.000001 },
-  ];
+  // ── SWAP dari SOL ──
+  { type: "swap", from: "SOL", to: "USDC", amount: 0.001 },
+  { type: "swap", from: "SOL", to: "USDT", amount: 0.001 },
+  { type: "swap", from: "SOL", to: "WBTC", amount: 0.001 },
+  { type: "swap", from: "SOL", to: "WETH", amount: 0.001 },
 
-  const REPEAT_TIMES = 3;    // Jumlah loop
+  // ── SWAP dari WETH ──
+  { type: "swap", from: "WETH", to: "USDC", amount: 0.000001 },
+  { type: "swap", from: "WETH", to: "USDT", amount: 0.000001 },
+  { type: "swap", from: "WETH", to: "SOL",  amount: 0.000001 },
+  { type: "swap", from: "WETH", to: "WBTC", amount: 0.000001 },
+
+  // ── SWAP dari WBTC ──
+  { type: "swap", from: "WBTC", to: "USDC", amount: 0.000001 },
+  { type: "swap", from: "WBTC", to: "USDT", amount: 0.000001 },
+  { type: "swap", from: "WBTC", to: "SOL",  amount: 0.000001 },
+  { type: "swap", from: "WBTC", to: "WETH", amount: 0.000001 },
+
+  // ── SEND semua token ──
+  { type: "send", token: "USDC",  amount: 0.01     },
+  { type: "send", token: "USDT",  amount: 0.01     },
+  { type: "send", token: "SOL",   amount: 0.0001   },
+  { type: "send", token: "WETH",  amount: 0.000001 },
+  { type: "send", token: "WBTC",  amount: 0.000001 },
+];
+  
+  const REPEAT_TIMES = 50;    // Jumlah loop
   const DELAY_MIN    = 30;   // Detik minimum antar aksi
   const DELAY_MAX    = 90;   // Detik maximum antar aksi
   const LOOP_DELAY   = 180;  // Jeda antar loop (detik)
