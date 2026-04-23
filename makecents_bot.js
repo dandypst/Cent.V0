@@ -21,7 +21,7 @@ const fetch = require("node-fetch");
 //  KONSTANTA
 // ─────────────────────────────────────────
 const RPC_URL      = "https://rpc.incentiv.io";
-const BUNDLER_URL  = "https://bundler.incentiv.io";
+const BUNDLER_URL  = "https://bundler.makecents.xyz";
 const ENTRY_POINT  = "0x3eC61c5633BBD7Afa9144C6610930489736a72d4";
 const PAYMASTER    = "0x43000f785EB43BcB4961C5c70276eD00e088972c";
 const CHAIN_ID     = 24101;
@@ -158,7 +158,7 @@ async function bundlerRpc(method, params) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Origin": "https://portal.incentiv.io",
+      "Origin": "https://app.makecents.xyz",
     },
     body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method, params }),
   });
