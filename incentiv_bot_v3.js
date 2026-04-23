@@ -251,6 +251,7 @@ async function submitUserOp(callData, gasConfig, label) {
 
   try {
     console.log("   📤 Sending:", JSON.stringify(formatted, null, 2));
+    console.log("   📤 UserOp:", JSON.stringify(formatted, null, 2));
 const userOpHash = await bundlerRpc("eth_sendUserOperation", [
   formatted,
   ENTRY_POINT,
