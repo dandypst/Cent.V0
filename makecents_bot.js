@@ -27,7 +27,7 @@ const PAYMASTER    = "0x43000f785EB43BcB4961C5c70276eD00e088972c";
 const CHAIN_ID     = 24101;
 
 // MakeCents router — confirmed dari tx real
-const MAKECENTS_ROUTER = "0x78e96dd6a0a4b9a523718f716b4dba6010c083ca";
+const MAKECENTS_ROUTER = "0x9EA931Dd16E48e0b2e3C36F9936174A5bb096443";
 
 // Token
 const TOKENS = {
