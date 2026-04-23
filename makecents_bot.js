@@ -75,10 +75,10 @@ const ACCOUNT_IFACE = new ethers.utils.Interface([
   "function executeBatch(address[] targets, uint256[] values, bytes[] calldatas)",
 ]);
 
-// MakeCents router — selector 0xbc651188
-// urutan parameter confirmed dari TX manual:
-// exactInputSingle(tokenIn, tokenOut, recipient, deadline, amountIn, amountOutMin, sqrtPriceLimit)
+// MakeCents router — selector 0xbc651188 dibungkus multicall 0xac9650d8
+// urutan parameter exactInputSingle confirmed dari TX yang dikenali MakeCents
 const MAKECENTS_IFACE = new ethers.utils.Interface([
+  "function multicall(bytes[] data) returns (bytes[])",
   "function exactInputSingle(address tokenIn, address tokenOut, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint256 sqrtPriceLimitX96) returns (uint256)",
 ]);
 
@@ -241,24 +241,27 @@ async function swapMakeCents(tokenInSymbol, tokenOutSymbol, amountIn) {
   const amountInBN = ethers.utils.parseUnits(String(amountIn), tokenIn.decimals);
   const deadline   = Math.floor(Date.now() / 1000) + 600;
 
-  // Encode exactInputSingle langsung — confirmed dari TX manual
+  // Encode exactInputSingle dibungkus multicall — confirmed dari TX yang dikenali MakeCents
   // urutan: tokenIn, tokenOut, recipient, deadline, amountIn, amountOutMin, sqrtPriceLimit
   const exactInputData = MAKECENTS_IFACE.encodeFunctionData("exactInputSingle", [
     tokenIn.address,
     tokenOut.address,
     SMART_WALLET,  // recipient
-    deadline,      // deadline (posisi ke-4, sesuai TX manual)
+    deadline,      // deadline posisi ke-4
     amountInBN,    // amountIn
     0,             // amountOutMinimum
     0,             // sqrtPriceLimitX96
   ]);
+
+  // Bungkus dalam multicall — wajib agar dikenali MakeCents
+  const multicallData = MAKECENTS_IFACE.encodeFunctionData("multicall", [[exactInputData]]);
 
   const targets   = [TOKENS.USDC.address, tokenIn.address, MAKECENTS_ROUTER];
   const values    = [0, 0, 0];
   const calldatas = [
     ERC20_IFACE.encodeFunctionData("transfer", [PAYMASTER, GAS_FEE_USDC]),
     ERC20_IFACE.encodeFunctionData("approve",  [MAKECENTS_ROUTER, amountInBN]),
-    exactInputData,
+    multicallData,
   ];
 
   console.log(`\n🔄 MakeCents Swap ${amountIn} ${tokenInSymbol} → ${tokenOutSymbol}`);
