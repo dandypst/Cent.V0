@@ -179,7 +179,7 @@ async function signUserOp(userOp, gasConfig) {
 async function bundlerRpc(method, params) {
   const res = await fetch(BUNDLER_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "Origin": "https://portal.incentiv.io" },
     body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method, params }),
   });
   const json = await res.json();
