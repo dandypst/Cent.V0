@@ -1,69 +1,69 @@
 /**
  * ============================================================
- *  INCENTIV FARMING BOT v2
+ *  INCENTIV FARMING BOT v2 update 1
  *  Auto Send + Swap via UserOperation (ERC-4337)
- *  Signing dengan EOA private key (tanpa Portal UI)
+ *  Submit via Bundler — EOA tidak perlu punya CENT
  * ============================================================
  *
  *  SETUP:
- *    npm install ethers@5 dotenv
+ *    npm install ethers@5 dotenv node-fetch@2
  *
- *  CONFIG:
- *    Buat file .env di folder yang sama:
- *      PRIVATE_KEY=0x...       <- private key EOA MetaMask kamu
- *      SMART_WALLET=0x6DA0...  <- smart wallet Incentiv kamu
- *      SEND_TO=0x...           <- alamat tujuan send token
+ *  CONFIG (.env):
+ *    PRIVATE_KEY=0x...       <- private key EOA MetaMask kamu
+ *    SMART_WALLET=0x6DA0...  <- smart wallet Incentiv kamu
+ *    SEND_TO=0x...           <- alamat tujuan send token
  */
 
 require("dotenv").config();
 const { ethers } = require("ethers");
+const fetch = require("node-fetch");
 
 // ─────────────────────────────────────────
 //  KONSTANTA JARINGAN & CONTRACT
 // ─────────────────────────────────────────
-const RPC_URL     = "https://rpc.incentiv.net";
+const RPC_URL     = "https://rpc.incentiv.io";
+const BUNDLER_URL = "https://bundler.incentiv.io"; // Bundler resmi — EOA tidak perlu CENT
 const ENTRY_POINT = "0x3eC61c5633BBD7Afa9144C6610930489736a72d4";
 const PAYMASTER   = "0x43000f785EB43BcB4961C5c70276eD00e088972c";
 const SWAP_ROUTER = "0x4a66A8bA9704DD06fE52A027f2B16a3F5D11B048";
-const CHAIN_ID    = 14082; // Incentiv Mainnet chain ID (akan di-fetch juga)
+const CHAIN_ID    = 24101; // Incentiv Mainnet
 
 // Token mainnet — semua confirmed dari transaksi real on-chain
 const TOKENS = {
-  USDC:  { address: "0x16e43840d8D79896A389a3De85aB0B0210C05685", decimals: 6  }, // confirmed tx send+swap
-  USDT:  { address: "0x39b076b5d23F588690D480af3Bf820edad31a4bB", decimals: 6  }, // confirmed tx swap USDC→USDT
-  WETH:  { address: "0x3e425317dB7BaC8077093117081b40d9b46F29cb", decimals: 18 }, // dari docs contracts
-  WBTC:  { address: "0x0292593D416Cb765E0e8FF77b32fA7e465958FEE", decimals: 8  }, // confirmed tx swap USDC→WBTC
-  SOL:   { address: "0xfaC24134dbc4b00Ee11114eCDFE6397f389203E3", decimals: 9  }, // confirmed tx swap USDC→SOL
-  WCENT: { address: "0xB0f0A14A50F14dc9e6476d61C00cF0375Dd4EB04", decimals: 18 }, // confirmed semua swap
+  USDC:  { address: "0x16e43840d8D79896A389a3De85aB0B0210C05685", decimals: 6  },
+  USDT:  { address: "0x39b076b5d23F588690D480af3Bf820edad31a4bB", decimals: 6  },
+  WETH:  { address: "0x3e425317dB7BaC8077093117081b40d9b46F29cb", decimals: 18 },
+  WBTC:  { address: "0x0292593D416Cb765E0e8FF77b32fA7e465958FEE", decimals: 8  },
+  SOL:   { address: "0xfaC24134dbc4b00Ee11114eCDFE6397f389203E3", decimals: 9  },
+  WCENT: { address: "0xB0f0A14A50F14dc9e6476d61C00cF0375Dd4EB04", decimals: 18 },
 };
 
 // DEX Pools — semua confirmed dari transaksi real (fee 0.3%)
-// USDC/WCENT: 0xf9884c2A1749b0a02ce780aDE437cBaDFA3a961D ✅ tx send+all swaps
-// SOL/WCENT:  0x40D6b92323493adB118EFB945D26c8bf09d37B9A ✅ tx USDC→SOL
-// WBTC/WCENT: 0x7b6C572888B19760461dF47452957766e51b0FB5 ✅ tx USDC→WBTC
-// USDT/WCENT: 0xd1da5c73eB5b498Dea4224267FEeA3A3dE82BA4E ✅ tx USDC→USDT
-// WETH/WCENT: 0xCC00489ECd4B60141DAb86c6aa44e7697c6923E6 ✅ tx USDC→WETH
-// Semua swap multi-hop via WCENT sebagai intermediate
+// USDC/WCENT: 0xf9884c2A1749b0a02ce780aDE437cBaDFA3a961D
+// SOL/WCENT:  0x40D6b92323493adB118EFB945D26c8bf09d37B9A
+// WBTC/WCENT: 0x7b6C572888B19760461dF47452957766e51b0FB5
+// USDT/WCENT: 0xd1da5c73eB5b498Dea4224267FEeA3A3dE82BA4E
+// WETH/WCENT: 0xCC00489ECd4B60141DAb86c6aa44e7697c6923E6
 
-// Gas values — diambil langsung dari transaksi real on-chain
+// Gas values — dari transaksi real on-chain
 const GAS_SEND = {
-  callGasLimit:         ethers.BigNumber.from("0x000186a0"),  // 100,000
-  verificationGasLimit: ethers.BigNumber.from("0x000412e6"),  // 267,494
-  preVerificationGas:   ethers.BigNumber.from("0x0000d728"),  // 55,080
+  callGasLimit:         ethers.BigNumber.from("0x000186a0"),
+  verificationGasLimit: ethers.BigNumber.from("0x000412e6"),
+  preVerificationGas:   ethers.BigNumber.from("0x0000d728"),
   maxFeePerGas:         ethers.BigNumber.from("0x000bea14d8b80000"),
   maxPriorityFeePerGas: ethers.BigNumber.from("0x000175fbf5ee800"),
 };
 
 const GAS_SWAP = {
-  callGasLimit:         ethers.BigNumber.from("0x000437b2"),  // 276,402 — dari tx WBTC
+  callGasLimit:         ethers.BigNumber.from("0x000437b2"),
   verificationGasLimit: ethers.BigNumber.from("0x000412e6"),
-  preVerificationGas:   ethers.BigNumber.from("0x0000e4b4"),  // 58,548
+  preVerificationGas:   ethers.BigNumber.from("0x0000e4b4"),
   maxFeePerGas:         ethers.BigNumber.from("0x000bea14d8b80000"),
   maxPriorityFeePerGas: ethers.BigNumber.from("0x000175fbf5ee800"),
 };
 
-// Gas fee USDC untuk Paymaster (dari tx real: ~22,000-22,200 USDC units = ~$0.022)
-const GAS_FEE_USDC = ethers.BigNumber.from("25000"); // sedikit lebih dari real agar tidak kurang
+// Gas fee USDC untuk Paymaster (~$0.025 per tx)
+const GAS_FEE_USDC = ethers.BigNumber.from("25000");
 
 // ─────────────────────────────────────────
 //  INISIALISASI
@@ -74,7 +74,7 @@ const SMART_WALLET = process.env.SMART_WALLET;
 const SEND_TO      = process.env.SEND_TO;
 
 // ─────────────────────────────────────────
-//  ABI MINIMAL
+//  ABI
 // ─────────────────────────────────────────
 const ERC20_IFACE = new ethers.utils.Interface([
   "function transfer(address to, uint256 amount) returns (bool)",
@@ -84,29 +84,29 @@ const ERC20_IFACE = new ethers.utils.Interface([
 
 const ENTRY_POINT_IFACE = new ethers.utils.Interface([
   "function getNonce(address sender, uint192 key) view returns (uint256)",
-  "function handleOps(tuple(address sender, uint256 nonce, bytes initCode, bytes callData, bytes32 accountGasLimits, uint256 preVerificationGas, bytes32 gasFees, bytes paymasterAndData, bytes signature)[] ops, address beneficiary)",
 ]);
 
 const ACCOUNT_IFACE = new ethers.utils.Interface([
-  // function signature 0x47e1da2a — confirmed dari semua tx
   "function execute(address[] targets, uint256[] values, bytes[] calldatas)",
+]);
+
+const ROUTER_IFACE = new ethers.utils.Interface([
+  "function exactInput(tuple(bytes path, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum) params) returns (uint256)",
 ]);
 
 const entryPoint = new ethers.Contract(ENTRY_POINT, ENTRY_POINT_IFACE, provider);
 
 // ─────────────────────────────────────────
-//  HELPER: Encode multi-call callData
-//  Function selector: 0x47e1da2a (execute)
+//  HELPER: Encode multi-call
 // ─────────────────────────────────────────
 function encodeExecute(targets, values, calldatas) {
   return ACCOUNT_IFACE.encodeFunctionData("execute", [targets, values, calldatas]);
 }
 
 // ─────────────────────────────────────────
-//  HELPER: Pack gas fields ke bytes32
+//  HELPER: Pack gas fields
 // ─────────────────────────────────────────
 function packAccountGasLimits(verificationGasLimit, callGasLimit) {
-  // bytes32 = verificationGasLimit (16 bytes hi) + callGasLimit (16 bytes lo)
   return ethers.utils.hexConcat([
     ethers.utils.hexZeroPad(verificationGasLimit.toHexString(), 16),
     ethers.utils.hexZeroPad(callGasLimit.toHexString(), 16),
@@ -122,11 +122,9 @@ function packGasFees(maxPriorityFeePerGas, maxFeePerGas) {
 
 // ─────────────────────────────────────────
 //  HELPER: Encode paymasterAndData
-//  Format: paymaster (20B) + maxCost (16B) + maxCost (16B)
-//  Confirmed dari semua tx: 0x43000f...000f4240000f4240
 // ─────────────────────────────────────────
 function encodePaymasterData() {
-  const maxCost = ethers.BigNumber.from("0x000f4240"); // 1,000,000 = 1 USDC
+  const maxCost = ethers.BigNumber.from("0x000f4240"); // 1 USDC max
   return ethers.utils.hexConcat([
     PAYMASTER,
     ethers.utils.hexZeroPad(maxCost.toHexString(), 16),
@@ -136,13 +134,8 @@ function encodePaymasterData() {
 
 // ─────────────────────────────────────────
 //  HELPER: Hitung UserOp hash
-//  Sesuai ERC-4337 v0.6 yang dipakai Incentiv
 // ─────────────────────────────────────────
 async function getUserOpHash(userOp) {
-  const network = await provider.getNetwork();
-  const chainId = network.chainId;
-
-  // Hash inner struct
   const innerHash = ethers.utils.keccak256(
     ethers.utils.defaultAbiCoder.encode(
       ["address","uint256","bytes32","bytes32","bytes32","uint256","bytes32","bytes32"],
@@ -159,44 +152,64 @@ async function getUserOpHash(userOp) {
     )
   );
 
-  // Final hash = keccak256(innerHash + entryPoint + chainId)
   return ethers.utils.keccak256(
     ethers.utils.defaultAbiCoder.encode(
       ["bytes32", "address", "uint256"],
-      [innerHash, ENTRY_POINT, chainId]
+      [innerHash, ENTRY_POINT, CHAIN_ID]
     )
   );
 }
 
 // ─────────────────────────────────────────
 //  HELPER: Sign UserOp
-//
-//  FORMAT SIGNATURE (68 bytes total) — confirmed dari semua tx:
-//  [0x00 0x00] keyIndex=0 (2 bytes)
-//  [0x01]      sigType=1 = ECDSA secp256k1 (1 byte)
-//  [65 bytes]  r + s + v (standard ECDSA)
+//  Format: 0x0000 (keyIndex) + 0x01 (sigType) + 65 bytes ECDSA
 // ─────────────────────────────────────────
 async function signUserOp(userOp) {
   const hash = await getUserOpHash(userOp);
-
-  // Sign the hash (ethers otomatis menambah Ethereum prefix \x19Ethereum...)
-  // Tapi dari trace, signing pakai raw hash tanpa prefix
-  // Kita coba dua cara: dengan dan tanpa prefix
   const rawSig = await signer._signingKey().signDigest(ethers.utils.arrayify(hash));
-  const sig65 = ethers.utils.joinSignature(rawSig); // r + s + v (65 bytes)
-
-  // Encode: 00 00 (keyIndex=0) + 01 (sigType=1) + 65 bytes sig
-  const signature = ethers.utils.hexConcat([
-    "0x0000",   // keyIndex = 0
-    "0x01",     // sigType = ECDSA
-    sig65,      // 65 bytes: r(32) + s(32) + v(1)
-  ]);
-
-  return signature;
+  const sig65 = ethers.utils.joinSignature(rawSig);
+  return ethers.utils.hexConcat(["0x0000", "0x01", sig65]);
 }
 
 // ─────────────────────────────────────────
-//  HELPER: Build dan submit UserOperation
+//  HELPER: Kirim JSON-RPC ke Bundler
+// ─────────────────────────────────────────
+async function bundlerRpc(method, params) {
+  const res = await fetch(BUNDLER_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: Date.now(),
+      method,
+      params,
+    }),
+  });
+  const json = await res.json();
+  if (json.error) throw new Error(`Bundler error: ${JSON.stringify(json.error)}`);
+  return json.result;
+}
+
+// ─────────────────────────────────────────
+//  HELPER: Format UserOp untuk bundler
+//  Bundler minta semua field dalam hex string
+// ─────────────────────────────────────────
+function formatUserOpForBundler(userOp) {
+  return {
+    sender:               userOp.sender,
+    nonce:                ethers.utils.hexlify(userOp.nonce),
+    initCode:             userOp.initCode,
+    callData:             userOp.callData,
+    accountGasLimits:     userOp.accountGasLimits,
+    preVerificationGas:   ethers.utils.hexlify(userOp.preVerificationGas),
+    gasFees:              userOp.gasFees,
+    paymasterAndData:     userOp.paymasterAndData,
+    signature:            userOp.signature,
+  };
+}
+
+// ─────────────────────────────────────────
+//  CORE: Build, sign, dan submit UserOp via Bundler
 // ─────────────────────────────────────────
 async function submitUserOp(callData, gasConfig, label) {
   console.log(`\n📝 Building UserOp: ${label}`);
@@ -216,62 +229,73 @@ async function submitUserOp(callData, gasConfig, label) {
     signature:          "0x",
   };
 
+  // Sign dengan raw digest (tanpa Ethereum prefix)
   userOp.signature = await signUserOp(userOp);
-  console.log(`   Signature (68 bytes): ${userOp.signature.slice(0, 20)}...`);
-
-  // Submit via handleOps — EOA kita bertindak sebagai bundler
-  const txData = ENTRY_POINT_IFACE.encodeFunctionData("handleOps", [
-    [userOp],
-    signer.address, // beneficiary = EOA kita
-  ]);
+  console.log(`   Signature: ${userOp.signature.slice(0, 20)}...`);
 
   try {
-    const tx = await signer.sendTransaction({
-      to: ENTRY_POINT,
-      data: txData,
-      gasLimit: 3_000_000,
-      maxFeePerGas: ethers.utils.parseUnits("16.502", "gwei"),
-      maxPriorityFeePerGas: ethers.utils.parseUnits("0.5", "gwei"),
-    });
+    // Submit ke Bundler via eth_sendUserOperation
+    const userOpHash = await bundlerRpc("eth_sendUserOperation", [
+      formatUserOpForBundler(userOp),
+      ENTRY_POINT,
+    ]);
 
-    console.log(`   ✅ TX: https://explorer.incentiv.io/tx/${tx.hash}`);
-    const receipt = await tx.wait();
-    console.log(`   ✅ Confirmed block ${receipt.blockNumber} | gas: ${receipt.gasUsed.toString()}`);
-    return tx.hash;
+    console.log(`   ✅ UserOp hash: ${userOpHash}`);
+    console.log(`   🔗 https://explorer.incentiv.io/op/${userOpHash}`);
+
+    // Polling sampai tx confirmed
+    const txHash = await waitForReceipt(userOpHash);
+    console.log(`   ✅ TX: https://explorer.incentiv.io/tx/${txHash}`);
+    return txHash;
+
   } catch (err) {
-    // Jika error karena signature, coba metode signing alternatif
-    if (err.message.includes("signature") || err.message.includes("AA24") || err.message.includes("AA23")) {
-      console.log(`   ⚠️  Signature error, mencoba metode alternatif...`);
-      return await submitWithEthSign(userOp, label);
+    // Kalau raw digest gagal (AA23/AA24), coba dengan Ethereum prefix
+    if (err.message.includes("AA23") || err.message.includes("AA24") || err.message.includes("signature")) {
+      console.log(`   ⚠️  Coba signing dengan Ethereum prefix...`);
+      return await submitWithEthPrefix(userOp, label);
     }
     throw err;
   }
 }
 
-// Metode signing alternatif: pakai eth_sign (dengan Ethereum prefix)
-async function submitWithEthSign(userOp, label) {
+// Fallback: signing dengan Ethereum prefix (\x19Ethereum Signed Message)
+async function submitWithEthPrefix(userOp, label) {
   const hash = await getUserOpHash(userOp);
   const sig65 = await signer.signMessage(ethers.utils.arrayify(hash));
-
   userOp.signature = ethers.utils.hexConcat(["0x0000", "0x01", sig65]);
-  console.log(`   Trying eth_sign signature...`);
 
-  const txData = ENTRY_POINT_IFACE.encodeFunctionData("handleOps", [
-    [userOp],
-    signer.address,
+  const userOpHash = await bundlerRpc("eth_sendUserOperation", [
+    formatUserOpForBundler(userOp),
+    ENTRY_POINT,
   ]);
 
-  const tx = await signer.sendTransaction({
-    to: ENTRY_POINT,
-    data: txData,
-    gasLimit: 3_000_000,
-    maxFeePerGas: ethers.utils.parseUnits("16.502", "gwei"),
-    maxPriorityFeePerGas: ethers.utils.parseUnits("0.5", "gwei"),
-  });
+  console.log(`   ✅ UserOp hash: ${userOpHash}`);
+  const txHash = await waitForReceipt(userOpHash);
+  console.log(`   ✅ TX: https://explorer.incentiv.io/tx/${txHash}`);
+  return txHash;
+}
 
-  console.log(`   ✅ TX: https://explorer.incentiv.io/tx/${tx.hash}`);
-  await tx.wait();
-  return tx.hash;
+// ─────────────────────────────────────────
+//  HELPER: Polling receipt dari bundler
+// ─────────────────────────────────────────
+async function waitForReceipt(userOpHash, maxWaitMs = 60000) {
+  const start = Date.now();
+  console.log(`   ⏳ Menunggu konfirmasi...`);
+
+  while (Date.now() - start < maxWaitMs) {
+    await sleep(3000);
+    try {
+      const receipt = await bundlerRpc("eth_getUserOperationReceipt", [userOpHash]);
+      if (receipt && receipt.receipt && receipt.receipt.transactionHash) {
+        return receipt.receipt.transactionHash;
+      }
+    } catch (e) {
+      // masih pending, lanjut polling
+    }
+  }
+  // Kalau timeout, kembalikan userOpHash saja
+  console.log(`   ⚠️  Timeout menunggu receipt — cek manual di explorer`);
+  return userOpHash;
 }
 
 // ─────────────────────────────────────────
@@ -283,7 +307,6 @@ async function sendToken(tokenSymbol, amount) {
 
   const amountBN = ethers.utils.parseUnits(String(amount), token.decimals);
 
-  // Multi-call: [bayar gas ke Paymaster] + [transfer token ke tujuan]
   const targets   = [TOKENS.USDC.address, token.address];
   const values    = [0, 0];
   const calldatas = [
@@ -291,15 +314,12 @@ async function sendToken(tokenSymbol, amount) {
     ERC20_IFACE.encodeFunctionData("transfer", [SEND_TO, amountBN]),
   ];
 
-  const callData = encodeExecute(targets, values, calldatas);
   console.log(`\n💸 Send ${amount} ${tokenSymbol} → ${SEND_TO.slice(0,10)}...`);
-  return await submitUserOp(callData, GAS_SEND, `Send ${amount} ${tokenSymbol}`);
+  return await submitUserOp(encodeExecute(targets, values, calldatas), GAS_SEND, `Send ${amount} ${tokenSymbol}`);
 }
 
 // ─────────────────────────────────────────
-//  AKSI 2: SWAP TOKEN (UniswapV3 exactInput)
-//  Path selalu via WCENT sebagai intermediate
-//  Confirmed dari semua tx swap (USDC→SOL, USDC→WBTC)
+//  AKSI 2: SWAP TOKEN
 // ─────────────────────────────────────────
 async function swapToken(tokenInSymbol, tokenOutSymbol, amountIn) {
   const tokenIn  = TOKENS[tokenInSymbol];
@@ -307,56 +327,38 @@ async function swapToken(tokenInSymbol, tokenOutSymbol, amountIn) {
   if (!tokenIn || !tokenOut) throw new Error(`Token tidak dikenal`);
 
   const amountInBN = ethers.utils.parseUnits(String(amountIn), tokenIn.decimals);
-  const deadline   = Math.floor(Date.now() / 1000) + 600; // 10 menit
+  const deadline   = Math.floor(Date.now() / 1000) + 600;
 
-  // Encode swap path
-  // Direct jika salah satu WCENT, multi-hop jika tidak
+  // Build path: direct jika salah satu WCENT, multi-hop via WCENT jika tidak
   let path;
-  if (tokenInSymbol === "WCENT") {
-    path = buildPath([tokenIn.address, tokenOut.address], [3000]);
-  } else if (tokenOutSymbol === "WCENT") {
+  if (tokenInSymbol === "WCENT" || tokenOutSymbol === "WCENT") {
     path = buildPath([tokenIn.address, tokenOut.address], [3000]);
   } else {
-    // Multi-hop: tokenIn → WCENT → tokenOut
-    path = buildPath(
-      [tokenIn.address, TOKENS.WCENT.address, tokenOut.address],
-      [3000, 3000]
-    );
+    path = buildPath([tokenIn.address, TOKENS.WCENT.address, tokenOut.address], [3000, 3000]);
   }
 
-  const ROUTER_IFACE = new ethers.utils.Interface([
-    "function exactInput(tuple(bytes path, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum) params) returns (uint256)",
-  ]);
-
   const swapCalldata = ROUTER_IFACE.encodeFunctionData("exactInput", [{
-    path:             path,
+    path,
     recipient:        SMART_WALLET,
-    deadline:         deadline,
+    deadline,
     amountIn:         amountInBN,
-    amountOutMinimum: 0, // no slippage protection untuk simplicity
+    amountOutMinimum: 0,
   }]);
 
-  // Multi-call: [bayar gas] + [approve router] + [swap]
-  const targets = [
-    TOKENS.USDC.address,  // bayar gas
-    tokenIn.address,      // approve router
-    SWAP_ROUTER,          // execute swap
-  ];
-  const values = [0, 0, 0];
+  const targets   = [TOKENS.USDC.address, tokenIn.address, SWAP_ROUTER];
+  const values    = [0, 0, 0];
   const calldatas = [
     ERC20_IFACE.encodeFunctionData("transfer", [PAYMASTER, GAS_FEE_USDC]),
     ERC20_IFACE.encodeFunctionData("approve",  [SWAP_ROUTER, amountInBN]),
     swapCalldata,
   ];
 
-  const callData = encodeExecute(targets, values, calldatas);
   console.log(`\n🔄 Swap ${amountIn} ${tokenInSymbol} → ${tokenOutSymbol}`);
-  return await submitUserOp(callData, GAS_SWAP, `Swap ${amountIn} ${tokenInSymbol}→${tokenOutSymbol}`);
+  return await submitUserOp(encodeExecute(targets, values, calldatas), GAS_SWAP, `Swap ${amountIn} ${tokenInSymbol}→${tokenOutSymbol}`);
 }
 
 // ─────────────────────────────────────────
-//  HELPER: Build UniswapV3 path bytes
-//  Format: addr0 + fee0 (3 bytes) + addr1 + fee1 (3 bytes) + addr2
+//  HELPER: Build UniswapV3 path
 // ─────────────────────────────────────────
 function buildPath(addresses, fees) {
   let path = addresses[0].slice(2).toLowerCase();
@@ -379,14 +381,13 @@ async function checkBalances() {
     const fmt = parseFloat(ethers.utils.formatUnits(bal, token.decimals)).toFixed(6);
     console.log(`   ${symbol.padEnd(6)}: ${fmt}`);
   }
-  // CENT native
   const centBal = await provider.getBalance(SMART_WALLET);
-  console.log(`   ${"CENT".padEnd(6)}: ${ethers.utils.formatEther(centBal)}`);
+  console.log(`   ${"CENT".padEnd(6)}: ${parseFloat(ethers.utils.formatEther(centBal)).toFixed(6)}`);
   console.log("─".repeat(45));
 }
 
 // ─────────────────────────────────────────
-//  HELPER: Delay random
+//  HELPER: Delay
 // ─────────────────────────────────────────
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -401,45 +402,52 @@ async function randomDelay(minSec, maxSec) {
 // ─────────────────────────────────────────
 async function main() {
   console.log("═".repeat(50));
-  console.log("  INCENTIV FARMING BOT v2");
+  console.log("  INCENTIV FARMING BOT v3");
   console.log("═".repeat(50));
 
   if (!process.env.PRIVATE_KEY) throw new Error("PRIVATE_KEY tidak ada di .env");
   if (!SMART_WALLET)            throw new Error("SMART_WALLET tidak ada di .env");
   if (!SEND_TO)                 throw new Error("SEND_TO tidak ada di .env");
 
-  const network = await provider.getNetwork();
-  console.log(`  Network  : Incentiv Mainnet (chainId: ${network.chainId})`);
   console.log(`  EOA      : ${signer.address}`);
   console.log(`  Wallet   : ${SMART_WALLET}`);
   console.log(`  Send To  : ${SEND_TO}`);
+  console.log(`  Bundler  : ${BUNDLER_URL}`);
+
+  // Cek koneksi bundler
+  try {
+    const supported = await bundlerRpc("eth_supportedEntryPoints", []);
+    console.log(`  EntryPoint: ${supported[0]}`);
+  } catch (e) {
+    console.log(`  ⚠️  Bundler check: ${e.message}`);
+  }
 
   await checkBalances();
 
   // ══════════════════════════════════════
-  //  ⚙️  EDIT KONFIGURASI AKTIVITAS DI BAWAH
+  //  ⚙️  KONFIGURASI AKTIVITAS
   // ══════════════════════════════════════
 
   const ACTIVITIES = [
-    // ── Swap USDC ke semua token (semua confirmed dari tx real) ──
-    { type: "swap", from: "USDC", to: "SOL",  amount: 0.1 }, // USDC→WCENT→SOL  ✅
-    { type: "swap", from: "USDC", to: "WBTC", amount: 0.1 }, // USDC→WCENT→WBTC ✅
-    { type: "swap", from: "USDC", to: "WETH", amount: 0.1 }, // USDC→WCENT→WETH ✅
-    { type: "swap", from: "USDC", to: "USDT", amount: 0.1 }, // USDC→WCENT→USDT ✅
+    // Swap USDC ke berbagai token
+    { type: "swap", from: "USDC", to: "SOL",  amount: 0.1 },
+    { type: "swap", from: "USDC", to: "WBTC", amount: 0.1 },
+    { type: "swap", from: "USDC", to: "WETH", amount: 0.1 },
+    { type: "swap", from: "USDC", to: "USDT", amount: 0.1 },
 
-    // ── Send token ke akun lain ──
+    // Send token ke akun lain
     { type: "send", token: "SOL",  amount: 0.0001 },
 
-    // ── Swap balik ke USDC ──
+    // Swap balik ke USDC
     { type: "swap", from: "SOL",  to: "USDC", amount: 0.001    },
     { type: "swap", from: "USDT", to: "USDC", amount: 0.09     },
     { type: "swap", from: "WETH", to: "USDC", amount: 0.000001 },
   ];
 
-  const REPEAT_TIMES  = 3;    // Jumlah loop
-  const DELAY_MIN     = 30;   // Detik minimum antar aksi
-  const DELAY_MAX     = 90;   // Detik maximum antar aksi
-  const LOOP_DELAY    = 180;  // Jeda antar loop (detik)
+  const REPEAT_TIMES = 3;    // Jumlah loop
+  const DELAY_MIN    = 30;   // Detik minimum antar aksi
+  const DELAY_MAX    = 90;   // Detik maximum antar aksi
+  const LOOP_DELAY   = 180;  // Jeda antar loop (detik)
 
   // ══════════════════════════════════════
 
