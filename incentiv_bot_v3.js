@@ -79,7 +79,7 @@ const ENTRY_POINT_IFACE = new ethers.utils.Interface([
 ]);
 
 const ACCOUNT_IFACE = new ethers.utils.Interface([
-  "function execute(address[] targets, uint256[] values, bytes[] calldatas)",
+  "function execute(address[] targets, bytes[] calldatas, uint256[] values)",
 ]);
 
 const ROUTER_IFACE = new ethers.utils.Interface([
