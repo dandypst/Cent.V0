@@ -164,17 +164,28 @@ async function signUserOp(userOp, gasConfig) {
 //  HELPER: Kirim JSON-RPC ke Bundler
 // ─────────────────────────────────────────
 async function bundlerRpc(method, params) {
-  const res = await fetch(BUNDLER_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Origin": "https://portal.incentiv.io",
-    },
-    body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method, params }),
-  });
-  const json = await res.json();
-  if (json.error) throw new Error(`Bundler error: ${JSON.stringify(json.error)}`);
-  return json.result;
+  const maxRetry = 3;
+  for (let i = 0; i < maxRetry; i++) {
+    try {
+      const res = await fetch(BUNDLER_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Origin": "https://portal.incentiv.io",
+          "Connection": "close",
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method, params }),
+        timeout: 30000,
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(`Bundler error: ${JSON.stringify(json.error)}`);
+      return json.result;
+    } catch (err) {
+      if (i === maxRetry - 1) throw err;
+      console.log(`   ⚠️  Retry ${i+1}/${maxRetry}: ${err.message}`);
+      await sleep(3000);
+    }
+  }
 }
 
 // ─────────────────────────────────────────
